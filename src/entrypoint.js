@@ -309,9 +309,9 @@ async function mixAudioTracks(audioClips, assets, outputPath, totalDuration) {
     const localPath = path.join(config.workDir, 'assets', `${clip.assetId}.mp3`);
     inputs.push(localPath);
     
-    // Add delay based on clip start time
+    // Add delay based on clip start time (supports both mono and stereo)
     const delayMs = Math.round(clip.startTime * 1000);
-    filterParts.push(`[${i}]adelay=${delayMs}|${delayMs}[a${i}]`);
+    filterParts.push(`[${i}]adelay=delays=${delayMs}:all=1[a${i}]`);
   }
 
   if (inputs.length === 0) {
@@ -366,18 +366,21 @@ async function combineVideoAndAudio(videoPath, audioPath, outputPath, outputSett
     let cmd = ffmpeg()
       .input(videoPath);
 
+    // Build output options based on whether audio exists
+    const outputOpts = ['-c:v', 'copy', '-y'];
+    
     if (audioPath) {
       cmd = cmd.input(audioPath);
+      outputOpts.push('-c:a', 'aac');
+      outputOpts.push('-b:a', outputSettings.audioBitrate || '192K');
+      outputOpts.push('-shortest');
+    } else {
+      // No audio, just copy video stream
+      outputOpts.push('-an');
     }
 
     cmd
-      .outputOptions([
-        '-c:v', 'copy',
-        '-c:a', audioPath ? 'aac' : 'copy',
-        '-b:a', outputSettings.audioBitrate || '192K',
-        '-shortest',
-        '-y'
-      ])
+      .outputOptions(outputOpts)
       .output(outputPath)
       .on('start', (cmdline) => {
         console.log('Combining video and audio...');

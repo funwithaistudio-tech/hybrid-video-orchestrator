@@ -18,6 +18,23 @@ const { Storage } = require('@google-cloud/storage');
 const { VertexAI } = require('@google-cloud/vertexai');
 const textToSpeech = require('@google-cloud/text-to-speech');
 const axios = require('axios');
+const { GoogleAuth } = require('google-auth-library');
+
+// Lazy-loaded Cloud Run Jobs client (optional dependency)
+let jobsClient = null;
+
+function getJobsClient() {
+  if (!jobsClient) {
+    try {
+      const { JobsClient } = require('@google-cloud/run').v2;
+      jobsClient = new JobsClient();
+    } catch {
+      // Cloud Run SDK not available, will return null
+      jobsClient = null;
+    }
+  }
+  return jobsClient;
+}
 
 // Configuration from environment variables
 const config = {
@@ -155,14 +172,18 @@ async function generateImageWithImagen(prompt, jobId, assetId) {
 
 /**
  * Get access token for API calls
+ * Uses cached auth client to avoid repeated initialization
  */
+let authClient = null;
+
 async function getAccessToken() {
-  const { GoogleAuth } = require('google-auth-library');
-  const auth = new GoogleAuth({
-    scopes: ['https://www.googleapis.com/auth/cloud-platform']
-  });
-  const client = await auth.getClient();
-  const token = await client.getAccessToken();
+  if (!authClient) {
+    const auth = new GoogleAuth({
+      scopes: ['https://www.googleapis.com/auth/cloud-platform']
+    });
+    authClient = await auth.getClient();
+  }
+  const token = await authClient.getAccessToken();
   return token.token;
 }
 
@@ -392,8 +413,10 @@ function buildEDL(script, assets, options = {}) {
  * @returns {Promise<Object>} Job execution info
  */
 async function dispatchRenderJob(jobId, edlPath) {
-  const { JobsClient } = require('@google-cloud/run').v2;
-  const client = new JobsClient();
+  const client = getJobsClient();
+  if (!client) {
+    throw new Error('Cloud Run Jobs client not available');
+  }
 
   const request = {
     name: `projects/${config.projectId}/locations/${config.location}/jobs/${config.rendererJobName}`,
