@@ -1,0 +1,394 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/funwithaistudio-tech/hybrid-video-orchestrator/schema/edl-schema.json",
+  "title": "Edit Decision List (EDL) Schema",
+  "description": "Schema for defining video editing decisions in the hybrid video orchestrator",
+  "type": "object",
+  "required": ["version", "metadata", "timeline"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Schema version",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "examples": ["1.0.0"]
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Project metadata",
+      "required": ["title", "outputSettings"],
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Project title",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "description": {
+          "type": "string",
+          "description": "Project description"
+        },
+        "author": {
+          "type": "string",
+          "description": "Author name"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "outputSettings": {
+          "type": "object",
+          "required": ["width", "height", "fps", "format"],
+          "properties": {
+            "width": {
+              "type": "integer",
+              "minimum": 320,
+              "maximum": 7680,
+              "description": "Output video width in pixels"
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 240,
+              "maximum": 4320,
+              "description": "Output video height in pixels"
+            },
+            "fps": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 120,
+              "description": "Frames per second"
+            },
+            "format": {
+              "type": "string",
+              "enum": ["mp4", "webm", "mov"],
+              "description": "Output container format"
+            },
+            "codec": {
+              "type": "string",
+              "enum": ["h264", "h265", "vp9", "av1"],
+              "default": "h264",
+              "description": "Video codec"
+            },
+            "bitrate": {
+              "type": "string",
+              "pattern": "^\\d+[KMG]?$",
+              "description": "Target video bitrate (e.g., '5M', '10000K')"
+            },
+            "audioCodec": {
+              "type": "string",
+              "enum": ["aac", "opus", "mp3"],
+              "default": "aac",
+              "description": "Audio codec"
+            },
+            "audioBitrate": {
+              "type": "string",
+              "pattern": "^\\d+[K]?$",
+              "default": "128K",
+              "description": "Audio bitrate"
+            }
+          }
+        }
+      }
+    },
+    "assets": {
+      "type": "object",
+      "description": "Asset definitions referenced in the timeline",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["type", "source"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["image", "video", "audio", "generated-image", "generated-audio", "pexels-video"],
+            "description": "Asset type"
+          },
+          "source": {
+            "type": "string",
+            "description": "Asset source URL or GCS path"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Generation prompt for AI-generated assets"
+          },
+          "voice": {
+            "type": "object",
+            "description": "TTS voice configuration",
+            "properties": {
+              "languageCode": {
+                "type": "string",
+                "default": "en-US"
+              },
+              "name": {
+                "type": "string"
+              },
+              "ssmlGender": {
+                "type": "string",
+                "enum": ["MALE", "FEMALE", "NEUTRAL"]
+              }
+            }
+          },
+          "searchQuery": {
+            "type": "string",
+            "description": "Search query for Pexels videos"
+          },
+          "duration": {
+            "type": "number",
+            "description": "Asset duration in seconds"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Additional asset metadata"
+          }
+        }
+      }
+    },
+    "timeline": {
+      "type": "object",
+      "description": "Timeline containing tracks and clips",
+      "required": ["tracks"],
+      "properties": {
+        "duration": {
+          "type": "number",
+          "description": "Total timeline duration in seconds"
+        },
+        "tracks": {
+          "type": "array",
+          "description": "Array of tracks (video, audio, overlay)",
+          "items": {
+            "type": "object",
+            "required": ["id", "type", "clips"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Unique track identifier"
+              },
+              "type": {
+                "type": "string",
+                "enum": ["video", "audio", "overlay", "subtitle"],
+                "description": "Track type"
+              },
+              "name": {
+                "type": "string",
+                "description": "Human-readable track name"
+              },
+              "muted": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether track audio is muted"
+              },
+              "volume": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 2,
+                "default": 1,
+                "description": "Track volume multiplier"
+              },
+              "clips": {
+                "type": "array",
+                "description": "Array of clips on this track",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "assetId", "startTime", "duration"],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Unique clip identifier"
+                    },
+                    "assetId": {
+                      "type": "string",
+                      "description": "Reference to asset in assets object"
+                    },
+                    "startTime": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "Start time on timeline in seconds"
+                    },
+                    "duration": {
+                      "type": "number",
+                      "minimum": 0.1,
+                      "description": "Clip duration in seconds"
+                    },
+                    "inPoint": {
+                      "type": "number",
+                      "minimum": 0,
+                      "default": 0,
+                      "description": "In point within the source asset"
+                    },
+                    "outPoint": {
+                      "type": "number",
+                      "description": "Out point within the source asset"
+                    },
+                    "effects": {
+                      "type": "array",
+                      "description": "Effects applied to the clip",
+                      "items": {
+                        "type": "object",
+                        "required": ["type"],
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": ["ken-burns", "fade-in", "fade-out", "cross-dissolve", "zoom", "pan", "blur", "brightness", "contrast", "saturation"],
+                            "description": "Effect type"
+                          },
+                          "params": {
+                            "type": "object",
+                            "description": "Effect parameters",
+                            "properties": {
+                              "startZoom": {
+                                "type": "number",
+                                "minimum": 0.1,
+                                "maximum": 5,
+                                "description": "Ken Burns start zoom level"
+                              },
+                              "endZoom": {
+                                "type": "number",
+                                "minimum": 0.1,
+                                "maximum": 5,
+                                "description": "Ken Burns end zoom level"
+                              },
+                              "startX": {
+                                "type": "number",
+                                "minimum": -1,
+                                "maximum": 1,
+                                "description": "Ken Burns start X position (normalized)"
+                              },
+                              "startY": {
+                                "type": "number",
+                                "minimum": -1,
+                                "maximum": 1,
+                                "description": "Ken Burns start Y position (normalized)"
+                              },
+                              "endX": {
+                                "type": "number",
+                                "minimum": -1,
+                                "maximum": 1,
+                                "description": "Ken Burns end X position (normalized)"
+                              },
+                              "endY": {
+                                "type": "number",
+                                "minimum": -1,
+                                "maximum": 1,
+                                "description": "Ken Burns end Y position (normalized)"
+                              },
+                              "fadeDuration": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "Fade duration in seconds"
+                              },
+                              "easing": {
+                                "type": "string",
+                                "enum": ["linear", "ease-in", "ease-out", "ease-in-out"],
+                                "default": "ease-in-out",
+                                "description": "Animation easing function"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "transitions": {
+                      "type": "object",
+                      "description": "Transitions at clip boundaries",
+                      "properties": {
+                        "in": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": ["fade", "dissolve", "wipe", "slide"]
+                            },
+                            "duration": {
+                              "type": "number",
+                              "minimum": 0
+                            }
+                          }
+                        },
+                        "out": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": ["fade", "dissolve", "wipe", "slide"]
+                            },
+                            "duration": {
+                              "type": "number",
+                              "minimum": 0
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "text": {
+                      "type": "object",
+                      "description": "Text overlay configuration (for subtitle tracks)",
+                      "properties": {
+                        "content": {
+                          "type": "string"
+                        },
+                        "fontFamily": {
+                          "type": "string",
+                          "default": "Arial"
+                        },
+                        "fontSize": {
+                          "type": "integer",
+                          "minimum": 8,
+                          "maximum": 200
+                        },
+                        "fontColor": {
+                          "type": "string",
+                          "pattern": "^#[0-9A-Fa-f]{6}$"
+                        },
+                        "backgroundColor": {
+                          "type": "string"
+                        },
+                        "position": {
+                          "type": "string",
+                          "enum": ["top", "center", "bottom"]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "renderSettings": {
+      "type": "object",
+      "description": "Rendering configuration",
+      "properties": {
+        "useGpu": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use GPU acceleration if available"
+        },
+        "threads": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64,
+          "description": "Number of encoding threads"
+        },
+        "preset": {
+          "type": "string",
+          "enum": ["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"],
+          "default": "medium",
+          "description": "Encoding preset"
+        },
+        "crf": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 51,
+          "default": 23,
+          "description": "Constant Rate Factor for quality"
+        },
+        "twoPass": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable two-pass encoding"
+        }
+      }
+    }
+  }
+}
