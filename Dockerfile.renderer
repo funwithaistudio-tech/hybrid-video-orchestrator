@@ -1,0 +1,56 @@
+# Hybrid Video Orchestrator - Renderer Service
+# FFmpeg-based video processing with GPU support
+
+# Build stage
+FROM node:20-bookworm AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install production dependencies only
+RUN npm ci --only=production
+
+# Production stage - Use full Debian for FFmpeg support
+FROM node:20-bookworm-slim
+
+WORKDIR /app
+
+# Install FFmpeg and required libraries
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libvips-dev \
+    wget \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create non-root user
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+
+# Create work directory with proper permissions
+RUN mkdir -p /tmp/render && chown -R appuser:appgroup /tmp/render
+
+# Copy node_modules from builder
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copy application code
+COPY package*.json ./
+COPY src/entrypoint.js ./src/
+COPY schema/ ./schema/
+
+# Set ownership
+RUN chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV WORK_DIR=/tmp/render
+ENV FFMPEG_PATH=/usr/bin/ffmpeg
+ENV FFPROBE_PATH=/usr/bin/ffprobe
+
+# Entry point for Cloud Run Jobs
+CMD ["node", "src/entrypoint.js"]
